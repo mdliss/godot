@@ -24,6 +24,7 @@ class SceneGenerator : public RefCounted {
 
 	Vector<String> warnings;
 	Node *scene_owner = nullptr;
+	String generation_mode = "full";
 
 	Node *_create_node(const NodeDefinition &p_def, Node *p_parent);
 	Node *_find_node_by_name(Node *p_root, const String &p_name);
@@ -44,6 +45,7 @@ public:
 
 	void set_editor_interface(EditorInterface *p_interface);
 	void set_undo_redo(EditorUndoRedoManager *p_undo_redo);
+	void set_generation_mode(const String &p_mode);
 
 	GenerationResult generate(const ParseResult &p_parsed, Node *p_scene_root);
 };

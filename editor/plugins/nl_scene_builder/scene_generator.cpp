@@ -21,6 +21,14 @@ void SceneGenerator::set_undo_redo(EditorUndoRedoManager *p_undo_redo) {
 	undo_redo = p_undo_redo;
 }
 
+void SceneGenerator::set_generation_mode(const String &p_mode) {
+	if (p_mode.is_empty()) {
+		generation_mode = "full";
+		return;
+	}
+	generation_mode = p_mode;
+}
+
 Node *SceneGenerator::_create_node(const NodeDefinition &p_def, Node *p_parent) {
 	Node *fallback_parent = p_parent ? p_parent : scene_owner;
 	if (!fallback_parent) {
@@ -375,57 +383,77 @@ SceneGenerator::GenerationResult SceneGenerator::generate(const ParseResult &p_p
 		return result;
 	}
 
+	String mode = generation_mode.is_empty() ? String("full") : generation_mode.to_lower();
+	if (mode != "layout" && mode != "scripts" && mode != "signals" && mode != "full") {
+		mode = "full";
+	}
+	const bool do_nodes = (mode == "full" || mode == "layout");
+	const bool do_scripts = (mode == "full" || mode == "scripts");
+	const bool do_signals = (mode == "full" || mode == "signals");
+
 	// Store scene root for ownership assignment
 	scene_owner = p_scene_root;
 
-	// Create all nodes first, ensuring declared parents exist before instancing children.
-	Vector<NodeDefinition> pending = p_parsed.nodes;
-	while (!pending.is_empty()) {
-		Vector<NodeDefinition> next_pending;
-		bool progress = false;
-		for (int i = 0; i < pending.size(); i++) {
-			const NodeDefinition &def = pending[i];
-			if (_has_available_parent(def)) {
-				Node *created = _create_node(def, p_scene_root);
-				if (created) {
-					result.nodes_created++;
-				}
-				progress = true;
-			} else {
-				next_pending.push_back(def);
-			}
-		}
-
-		if (!progress) {
-			for (int i = 0; i < next_pending.size(); i++) {
-				const NodeDefinition &def = next_pending[i];
-				warnings.push_back("Parent '" + def.parent + "' not found for node '" + def.name + "'. Placing under scene root.");
-				Node *created = _create_node(def, p_scene_root);
-				if (created) {
-					result.nodes_created++;
+	if (do_nodes) {
+		// Create all nodes first, ensuring declared parents exist before instancing children.
+		Vector<NodeDefinition> pending = p_parsed.nodes;
+		while (!pending.is_empty()) {
+			Vector<NodeDefinition> next_pending;
+			bool progress = false;
+			for (int i = 0; i < pending.size(); i++) {
+				const NodeDefinition &def = pending[i];
+				if (_has_available_parent(def)) {
+					Node *created = _create_node(def, p_scene_root);
+					if (created) {
+						result.nodes_created++;
+					}
+					progress = true;
+				} else {
+					next_pending.push_back(def);
 				}
 			}
-			break;
-		}
 
-		pending = next_pending;
+			if (!progress) {
+				for (int i = 0; i < next_pending.size(); i++) {
+					const NodeDefinition &def = next_pending[i];
+					warnings.push_back("Parent '" + def.parent + "' not found for node '" + def.name + "'. Placing under scene root.");
+					Node *created = _create_node(def, p_scene_root);
+					if (created) {
+						result.nodes_created++;
+					}
+				}
+				break;
+			}
+
+			pending = next_pending;
+		}
+	} else if (!p_parsed.nodes.is_empty()) {
+		warnings.push_back("Skipping node creation for pass '" + mode + "'.");
 	}
 
 	// Then attach scripts
-	if (p_parsed.scripts.size() == 0) {
-		warnings.push_back("No scripts in LLM response - movement won't work");
-	}
-	for (const ScriptDefinition &script_def : p_parsed.scripts) {
-		Node *target = _find_node_by_name(p_scene_root, script_def.attach_to);
-		if (target) {
-			_attach_script(target, script_def.code);
-			warnings.push_back("Attached script to: " + script_def.attach_to);
-		} else {
-			warnings.push_back("Could not find node to attach script: " + script_def.attach_to);
+if (do_scripts) {
+		if (p_parsed.scripts.size() == 0) {
+			warnings.push_back("No scripts in LLM response - movement won't work");
 		}
+		for (const ScriptDefinition &script_def : p_parsed.scripts) {
+			Node *target = _find_node_by_name(p_scene_root, script_def.attach_to);
+			if (target) {
+				_attach_script(target, script_def.code);
+				warnings.push_back("Attached script to: " + script_def.attach_to);
+			} else {
+				warnings.push_back("Could not find node to attach script: " + script_def.attach_to);
+			}
+		}
+	} else if (!p_parsed.scripts.is_empty()) {
+		warnings.push_back("Skipping script attachment for pass '" + mode + "'.");
 	}
 
-	_connect_signals(p_parsed, p_scene_root);
+	if (do_signals) {
+		_connect_signals(p_parsed, p_scene_root);
+	} else if (!p_parsed.signals.is_empty()) {
+		warnings.push_back("Skipping signal connections for pass '" + mode + "'.");
+	}
 
 	result.success = true;
 	result.warnings = warnings;
