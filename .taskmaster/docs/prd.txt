@@ -1,0 +1,243 @@
+Godot NL Scene Builder - Consolidated PRD
+=========================================
+
+This PRD is synthesized from:
+- docs/PRD.md
+- docs/tasks.md
+- docs/architecture.md
+
+It describes a Godot editor plugin ("NL Scene Builder") that turns natural
+language prompts into 2D scenes using an LLM (Claude/OpenAI-style API).
+
+The MVP scope is 2D only, focused on common node types and a single-scene
+generation workflow embedded into the Godot editor.
+
+High-Level Goals
+----------------
+
+- Allow a game developer to type a natural language description of a scene
+  in a docked panel inside the Godot editor.
+- Call a remote LLM (Claude-like) via HTTP to turn that description plus
+  current scene context into a structured JSON representation of nodes,
+  scripts, and signal connections.
+- Parse that JSON and generate Godot nodes, attach GDScript, and connect
+  signals, all with proper undo/redo support so that a single Ctrl+Z
+  reverts the entire generation.
+- Provide clear progress indication, error messages, and basic configuration
+  (API key, model, token limits) inside the editor.
+
+Core Architecture (MVP)
+-----------------------
+
+- Implemented as a brownfield C++ modification in the existing Godot repo.
+- Lives under `editor/plugins/nl_scene_builder/`.
+- Main components:
+  - `NLSceneBuilderPlugin` (EditorPlugin entry point)
+  - `NLInputPanel` (dock UI for prompts and status)
+  - `LLMService` (HTTP client wrapper and prompt builder)
+  - `ResponseParser` (JSON parsing and validation)
+  - `SceneGenerator` (node creation, scripts, signals, undo/redo)
+- Integrates with core Godot editor systems:
+  - `EditorInterface` (scene access)
+  - `EditorUndoRedoManager` (undo/redo)
+  - `EditorSettings` (API key, model config)
+  - `HTTPClient` (network I/O)
+  - `JSON` (parsing LLM responses)
+
+Primary User Stories (MVP)
+--------------------------
+
+- As a game developer, I want to describe a scene in plain English so that
+  I can rapidly prototype without manual node creation.
+- As a game developer, I want to see a preview / status of what was
+  generated so that I can confirm before committing changes.
+- As a game developer, I want to generate playable 2D characters and basic
+  enemies so that I can test core gameplay quickly.
+- As a game developer, I want to add simple UI (health bars, score) and
+  have scripts wired up so that I get a complete game loop.
+- As a game developer, I want to undo generated scenes in a single undo
+  action so that I can iterate quickly without manual cleanup.
+
+Key MVP Features
+----------------
+
+1. Natural Language Input Panel
+   - Dockable panel integrated into the Godot editor.
+   - Multi-line `TextEdit` for prompts.
+   - Generate and Clear buttons.
+   - Status display (success/error messages).
+   - Progress bar for long-running generations.
+   - Token usage display (nice-to-have).
+
+2. LLM Integration
+   - HTTP POST requests to a Claude/OpenAI-compatible API endpoint.
+   - Well-defined system prompt and scene context construction.
+   - Structured JSON response with:
+     - `nodes[]` (name, type, parent, properties, children)
+     - `scripts[]` (attach_to, code)
+     - `signals[]` (source, signal, target, method)
+   - Robust error handling:
+     - Network errors
+     - API errors (401, 429, 5xx)
+     - Malformed JSON
+
+3. Scene Generation Engine
+   - Parse structured JSON into internal structs.
+   - Create nodes via `ClassDB::instantiate`.
+   - Apply properties via `set()`.
+   - Attach GDScript resources with generated code.
+   - Connect signals between nodes.
+   - Generate placeholder sprites and collision shapes where needed.
+   - Batch all changes into a single undo/redo action.
+
+4. Editor Integration & Settings
+   - Persist panel dock location and state.
+   - Store API key, model name, token limit in `EditorSettings`.
+   - Respect current scene: add nodes to the active scene root.
+   - Expose useful configuration for developers (e.g., timeout).
+
+5. Error Handling & UX
+   - Clear, actionable error messages in the panel.
+   - Progress indication while waiting on the LLM.
+   - Partial success behaviour (skip problematic nodes but still generate
+     others where safe).
+
+Constraints & Out-of-Scope (MVP)
+--------------------------------
+
+- 2D scenes only (no 3D nodes or meshes).
+- GDScript only (no C#, GDExtension codegen).
+- English-only prompts.
+- Limited node type set focused on common gameplay and UI patterns.
+- Synchronous HTTP (future phase: async/streaming).
+
+Implementation Plan (High-Level)
+--------------------------------
+
+The implementation is organized into PR-sized milestones roughly matching
+`docs/tasks.md`, but expressed here as feature-level tasks for Task Master.
+
+1. Repository and Plugin Scaffolding
+   - Create `editor/plugins/nl_scene_builder/` directory and baseline
+     C++ files for:
+       - `nl_scene_builder_plugin.{h,cpp}`
+       - `nl_input_panel.{h,cpp}`
+       - `llm_service.{h,cpp}`
+       - `response_parser.{h,cpp}`
+       - `scene_generator.{h,cpp}`
+       - shared types header (e.g. `nl_scene_builder_types.h`).
+   - Add `SCsub` file to compile the plugin sources.
+   - Wire plugin into parent `editor/plugins/SCsub`.
+   - Ensure Godot builds and the plugin appears in the editor plugin list.
+
+2. Minimal NL Input Panel (UI Shell)
+   - Implement `NLInputPanel` as a dockable `Control`.
+   - Add basic layout:
+     - Title label.
+     - Multi-line prompt `TextEdit`.
+     - Generate and Clear buttons.
+     - Status text area.
+     - Placeholder for progress bar and token count.
+   - Register the panel in `NLSceneBuilderPlugin` and ensure it can be
+     shown/hidden via the editor’s plugin UI.
+
+3. Input Panel UX & Shortcuts
+   - Flesh out the panel UI according to the mock layout in `docs/tasks.md`.
+   - Implement status display helper (normal vs. error styling).
+   - Add progress bar behaviour (idle vs. generating).
+   - Implement keyboard shortcuts:
+     - Ctrl+Enter to trigger generation when focus is in the prompt.
+     - Escape to clear the prompt.
+   - Ensure panel resizes and docks cleanly in typical editor layouts.
+
+4. LLMService HTTP Integration
+   - Implement `LLMService` with:
+     - Configuration of API key, model, and token limits.
+     - Construction of a system prompt tailored to Godot 4 2D scenes.
+     - Construction of scene context JSON from the current scene tree.
+     - HTTP request/response handling using `HTTPClient`.
+   - Build request headers and payload compatible with the target API
+     (Anthropic / OpenAI-compatible).
+   - Implement non-blocking polling or a simple state machine suitable
+     for use from the editor main loop.
+   - Surface errors and raw responses back to the caller.
+
+5. ResponseParser Implementation
+   - Define internal data structures for:
+     - NodeDefinition
+     - ScriptDefinition
+     - SignalConnection
+   - Implement JSON parsing using Godot’s `JSON` utilities.
+   - Validate node types with `ClassDB::class_exists`.
+   - Parse properties and nested children recursively.
+   - Handle malformed JSON and missing fields with clear error messages.
+   - Provide a `ParseResult` struct summarizing success, errors, and
+   - extracted data.
+
+6. SceneGenerator Implementation
+   - Implement `SceneGenerator` to:
+     - Create nodes based on NodeDefinition, linking parents/children.
+     - Apply common property types (Vector2, float, Color, String, etc.).
+     - Create placeholder sprites and collision shapes for basic 2D
+       entities.
+     - Generate and attach GDScript resources for ScriptDefinition
+       entries.
+     - Connect signals defined in SignalConnection entries.
+   - Integrate with `EditorUndoRedoManager` to wrap all changes in a
+     single undo action.
+   - Return a result struct with node counts, warnings, and errors.
+
+7. End-to-End Generation Flow
+   - Wire `NLInputPanel` to:
+     - Validate prompt input.
+     - Build scene context via `LLMService`.
+     - Trigger LLM generation and show progress.
+     - Feed the JSON response into `ResponseParser`.
+     - Pass parsed results into `SceneGenerator`.
+     - Show success (including node counts) or error messages in the UI.
+   - Implement a simple polling loop (e.g. `_process`) for long-running
+     HTTP requests.
+   - Add cancel support:
+     - Cancel button when generation is active.
+     - Cancel method on `LLMService`.
+     - Correctly reset UI state after cancellation.
+
+8. System Prompt & Script Templates
+   - Extract the system prompt into a dedicated header (e.g.
+     `system_prompt.h`).
+   - Embed reusable GDScript templates for:
+     - Player movement.
+     - Patrol AI.
+     - Collectible pickup.
+     - Health bar updates.
+     - Score tracking.
+   - Iterate on prompt wording to improve reliability of JSON and script
+     output based on manual testing.
+
+9. Error Handling, Edge Cases, and UX Polish
+   - Audit all components for robust error reporting:
+     - Missing/invalid API key.
+     - Network failures and timeouts.
+     - Malformed JSON.
+     - Unsupported node types or properties.
+     - Scene generation failures.
+   - Ensure the plugin behaves safely when:
+     - No scene is open.
+     - The scene is very large.
+     - Multiple generations are triggered in quick succession.
+   - Polish UI details (button states, loading indicators, keyboard
+     navigation, accessibility basics).
+
+10. Documentation and Demo Readiness
+    - Update project README with:
+      - What the NL Scene Builder does.
+      - How to build and enable the plugin.
+      - Basic usage examples and screenshots/GIFs.
+    - Maintain a development log (e.g. BRAINLIFT-style) with key
+      decisions and learnings.
+    - Prepare a short demo script and record a 4–5 minute walkthrough of
+      the feature, covering:
+      - Prompting and generation.
+      - Error handling.
+      - Undo/redo behaviour.
+

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(scons:*)",
+      "mcp__task-master-ai__get_tasks",
+      "mcp__task-master-ai__set_task_status",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

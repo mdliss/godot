@@ -1,0 +1,77 @@
+{
+	"meta": {
+		"generatedAt": "2025-12-01T22:13:54.562Z",
+		"tasksAnalyzed": 8,
+		"totalTasks": 8,
+		"analysisCount": 8,
+		"thresholdScore": 7,
+		"projectName": "Taskmaster",
+		"usedResearch": false
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Repo scan for plugin scaffolding",
+			"complexityScore": 3,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Generate 4–5 subtasks to perform a fast, read-only repository scan:\n- List contents of `docs/` and `editor/plugins/` (use ripgrep/rg) and capture notable files.\n- Open `docs/PRD.md`, `docs/tasks.md`, `docs/architecture.md` if present; summarize NL Scene Builder-relevant points.\n- Search for `editor/plugins/nl_scene_builder/*` and references in `editor/plugins/SCsub`.\n- Identify Godot version from `SConstruct` and `version.py` (e.g., 4.2/4.3).\n- Produce `docs/repo_scan.md` with explicit yes/no findings, Godot version, and implications for scaffolding.\nAcceptance: report exists with sources/commands noted; no code changes made.",
+			"reasoning": "Pure discovery with grep and file reads; minimal risk and no code changes. Slight nuance in parsing build/version files and ensuring complete coverage justifies a small bump above trivial."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Scaffold Minimal NL Scene Builder Editor Plugin (4 files)",
+			"complexityScore": 6,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Generate 6–8 subtasks to scaffold the minimal editor plugin without building:\n- Create `editor/plugins/nl_scene_builder/`.\n- Add `nl_scene_builder_plugin.h`: declare `class NLSceneBuilderPlugin : public EditorPlugin` with `GDCLASS`, an `EditorDock* dock` member, and ctor/dtor declarations.\n- Add `nl_scene_builder_plugin.cpp`: ctor creates an `EditorDock`, sets title \"NL Scene Builder\", sets a layout key \"nl_scene_builder\", adds a `VBoxContainer` with a `Label` \"NL Scene Builder (scaffold)\", and registers the dock using non-deprecated Godot 4.x APIs; dtor removes the dock and frees it.\n- Add `nl_scene_builder/SCsub`: clone `env`, prepend this folder to `CPPPATH`, and append `*.cpp` to `env.editor_sources`.\n- Update `editor/plugins/SCsub` to include `SConscript('nl_scene_builder/SCsub')` while preserving the existing top-level `*.cpp` build line.\n- Update `editor/register_editor_types.cpp` to include the plugin header and add `EditorPlugins::add_by_type<NLSceneBuilderPlugin>();` in alphabetical order.\n- Add static verification steps (grep) to confirm new include, `add_by_type` call, and `SConscript` entry.\nAcceptance: files exist with expected class/function signatures; grep checks pass; no build performed.",
+			"reasoning": "Touches multiple engine/editor surfaces (C++ API, docks, SCons structure, registration). Non-deprecated API use and alphabetical registration add precision requirements. Static checks only reduce risk, but integration nuances keep complexity mid-high."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Build and verify minimal NL Scene Builder plugin",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Generate 5–7 subtasks to build and verify the plugin:\n- Confirm prerequisites/toolchain and select platform flags; record chosen SCons args.\n- Build: `scons -jN platform=<...> dev_build=yes target=editor`.\n- Launch the built editor from `bin/`; capture startup logs.\n- Verify a dock titled \"NL Scene Builder\" with label \"NL Scene Builder (scaffold)\" appears; take a screenshot.\n- Close and relaunch to confirm clean shutdown and persistence; log warnings/errors.\n- Write `docs/build_verification.md` capturing commands, binary path, observations, and any issues linked to task 2.\nAcceptance: successful build, dock visible, no crashes on open/close, verification doc exists.",
+			"reasoning": "Full engine build is lengthy and environment-sensitive; runtime validation adds manual checks and troubleshooting. Platform variability and potential toolchain issues raise complexity."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "Design multi-agent pipeline for one-shot 2D game generation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Generate 4–6 subtasks to design the multi-agent pipeline:\n- Define agent roles (Game Spec, Scene Builder, QA Tester, optional Cross-checker) and responsibilities.\n- Describe end-to-end flow from single user prompt to generated and QA-checked 2D game.\n- Specify artifacts (spec JSON/MD, per-scene prompts, checklists, QA report) and repo locations (e.g., `docs/`, `tools/`, `.taskmaster/docs/`).\n- Outline orchestration approach (Task Master workflow and/or CLI entry) and handoffs between agents.\n- Create `docs/multi_agent_pipeline.md` with a concise sequence diagram or bullet flow and clear contracts.\nAcceptance: design doc exists; roles have I/O contracts; flow aligns with 2D-only, GDScript, and HTTP LLM constraints.",
+			"reasoning": "Cross-cutting architecture across agents and artifacts; decisions must align with repo structure and constraints. No implementation yet, but requires clear contracts and sequencing across components."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Specify Game Spec Agent and game description format",
+			"complexityScore": 5,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Generate 4–6 subtasks to specify the Game Spec Agent and schema:\n- Define a compact 2D game schema (title, genre, core loop, entities, scenes, controls, win/lose, UI) as JSON or Markdown under `docs/game_specs/`.\n- Draft the agent prompt/guidelines to convert a raw idea into a filled spec within NL Scene Builder constraints (2D nodes, GDScript patterns).\n- Describe a light validator/cross-check and a completeness/ambiguity checklist.\n- Provide 1–2 sample filled specs from example prompts.\n- Write `docs/game_spec_agent.md` linking to the schema and samples.\nAcceptance: schema + doc + samples present; constraints exclude out-of-scope features (3D, non-GDScript).",
+			"reasoning": "Primarily schema and prompt design with examples and a validator description. Moderate effort and clarity needed; relies on task 4’s architectural direction but limited technical risk."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Define Scene Builder Agent and per-scene prompt strategy",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Generate 4–6 subtasks to define the Scene Builder Agent:\n- Describe how to split a game spec into per-scene prompts (menu, level, game-over, etc.).\n- Write guidance and a prompt template that stays within supported nodes/scripts; include token/length guardrails.\n- Define a per-scene expected-node/behaviour checklist format for later QA.\n- Walk one sample spec through to per-scene prompts and checklists.\n- Author `docs/scene_builder_agent.md` with examples and checklists.\nAcceptance: doc includes templates, realistic per-scene prompts, and checklists compatible with the plugin.",
+			"reasoning": "Bridges structured specs to actionable prompts/checklists while respecting plugin constraints. Requires concrete examples and practicality for later automation; depends on tasks 4 and 5."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Design QA Tester Agent and game validation strategy",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Generate 5–7 subtasks to design the QA Tester Agent:\n- Enumerate feasible checks now (structural nodes/signals, basic behaviours, UI correctness).\n- Define inputs (spec + scene checklists) and outputs (human-readable QA report + concrete test list).\n- Propose how to execute checks later (CLI runner, minimal GDScript test scenes, scripted input), without implementing.\n- Provide a QA report template and one worked example using the sample spec.\n- Document cross-verification against the original spec to flag drift.\n- Produce `docs/qa_tester_agent.md` with the above.\nAcceptance: doc shows realistic, automatable checks and a useful report template with example.",
+			"reasoning": "Designing practical, automatable validation is non-trivial and must balance scope with feasibility. Cross-verification logic and example walkthrough add depth; depends on prior agent outputs."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Plan orchestration script for one-shot 2D game generation",
+			"complexityScore": 6,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Generate 4–6 subtasks to plan the orchestration CLI:\n- Choose language and location (e.g., `tools/nl_game_pipeline/` in Python or Node).\n- Define CLI interface (input prompt, optional flags) and outputs (spec path, scene prompts, QA report, logs).\n- Specify call sequence: Game Spec → Scene Builder → (future) Godot scene generation → QA Tester; include data handoffs.\n- Outline error-handling and simple retry/bounce-back rules when QA finds critical gaps.\n- Create `docs/nl_game_orchestrator.md` with invocation examples and non-interactive assumptions.\nAcceptance: plan doc has clear I/O, sequence, and a feasible automation path with current tools.",
+			"reasoning": "Integration planning across agents with clear I/O and sequencing, plus error handling. No code yet but must account for automation constraints and future Godot integration; depends on tasks 4–7 for inputs/outputs."
+		}
+	]
+}
