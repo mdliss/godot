@@ -1,0 +1,13 @@
+{
+  "slug": "coins01",
+  "idea": "platformer with coins",
+  "created_at": "2025-12-02T01:49:09.976185+00:00",
+  "spec": "docs/artifacts/game_specs/coins01.json",
+  "prompts": [
+    "docs/artifacts/scene_prompts/coins01/main_menu.prompt.md",
+    "docs/artifacts/scene_expectations/coins01/main_menu.checklist.md",
+    "docs/artifacts/scene_prompts/coins01/level_1.prompt.md",
+    "docs/artifacts/scene_expectations/coins01/level_1.checklist.md"
+  ],
+  "qa_report": "docs/artifacts/qa_reports/coins01.md"
+}
